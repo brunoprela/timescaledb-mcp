@@ -300,7 +300,14 @@ All checks run automatically in CI via GitHub Actions.
 
 ## Publishing
 
-For instructions on how to publish new versions to PyPI, see [PUBLISHING.md](PUBLISHING.md).
+The package is automatically published to PyPI via GitHub Actions when you create a GitHub Release. See [.github/SETUP_PUBLISHING.md](.github/SETUP_PUBLISHING.md) for setup instructions.
+
+**Quick setup:**
+1. Set up [PyPI Trusted Publishing](https://pypi.org/manage/account/publishing/) (recommended)
+   - Or add `PYPI_API_TOKEN` as a GitHub secret
+2. Update version in `pyproject.toml`
+3. Create a GitHub Release with matching tag (e.g., `v0.1.0`)
+4. The workflow will automatically build and publish to PyPI
 
 ## License
 

@@ -2,41 +2,55 @@ name: Publish to PyPI
 
 on:
   release:
-    types: [created]
+    types: [published]
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to publish (e.g., 0.1.0)'
-        required: true
-        type: string
-      testpypi:
-        description: 'Publish to TestPyPI first'
-        required: false
-        type: boolean
-        default: true
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write  # Required for trusted publishing
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for version detection
     
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.12"
-    
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: "latest"
+        cache: 'pip'
     
     - name: Install build dependencies
       run: |
-        uv pip install build twine
+        python -m pip install --upgrade pip
+        pip install build twine
+    
+    - name: Extract version from tag or release
+      id: version
+      run: |
+        if [ "${{ github.event_name }}" = "release" ]; then
+          VERSION="${{ github.event.release.tag_name }}"
+          # Remove 'v' prefix if present
+          VERSION=${VERSION#v}
+        else
+          # Extract from pyproject.toml
+          VERSION=$(grep -E '^version = ' pyproject.toml | sed -E "s/version = ['\"](.*)['\"]/\1/")
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "📦 Version: $VERSION"
+    
+    - name: Verify version matches pyproject.toml
+      run: |
+        PYPROJECT_VERSION=$(grep -E '^version = ' pyproject.toml | sed -E "s/version = ['\"](.*)['\"]/\1/")
+        TAG_VERSION="${{ steps.version.outputs.version }}"
+        if [ "$PYPROJECT_VERSION" != "$TAG_VERSION" ]; then
+          echo "⚠️  Warning: pyproject.toml version ($PYPROJECT_VERSION) doesn't match tag version ($TAG_VERSION)"
+          echo "Continuing anyway..."
+        fi
     
     - name: Build package
       run: |
@@ -44,20 +58,33 @@ jobs:
     
     - name: Check package
       run: |
-        twine check dist/*
+        python -m twine check dist/*
     
-    - name: Publish to TestPyPI
-      if: github.event.inputs.testpypi != 'false'
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
-      run: |
-        twine upload --repository testpypi dist/*
+    - name: Publish to PyPI (Trusted Publishing)
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        packages-dir: dist/
+        print-hash: true
     
-    - name: Publish to PyPI
+    - name: Publish to PyPI (API Token - Fallback)
+      if: failure()  # Only run if trusted publishing fails
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
       run: |
-        twine upload dist/*
-
+        if [ -z "$TWINE_PASSWORD" ]; then
+          echo "❌ PYPI_API_TOKEN not set and trusted publishing failed"
+          exit 1
+        fi
+        echo "📤 Publishing to PyPI using API token (fallback)..."
+        python -m twine upload dist/*
+        echo "✅ Published to PyPI!"
+    
+    - name: Verify publication
+      run: |
+        echo "✅ Successfully published to PyPI!"
+        echo "🌐 Package available at:"
+        echo "   https://pypi.org/project/timescaledb-mcp/${{ steps.version.outputs.version }}/"
+        echo ""
+        echo "📦 Install with:"
+        echo "   pip install timescaledb-mcp==${{ steps.version.outputs.version }}"
