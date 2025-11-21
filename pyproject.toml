@@ -10,7 +10,10 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "TimescaleDB MCP Contributors"}
+    {name = "Bruno Prela", email = "brunoprela@gmail.com"}
+]
+maintainers = [
+    {name = "Bruno Prela", email = "brunoprela@gmail.com"}
 ]
 keywords = ["mcp", "timescaledb", "postgresql", "timeseries", "model-context-protocol"]
 classifiers = [

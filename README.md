@@ -16,7 +16,7 @@ A Python-based Model Context Protocol (MCP) server for TimescaleDB that enables 
 
 ## Installation
 
-### From PyPI (when published)
+### From PyPI
 
 ```bash
 pip install timescaledb-mcp
@@ -27,6 +27,8 @@ Or using `uv` (faster):
 ```bash
 uv pip install timescaledb-mcp
 ```
+
+The package is available on [PyPI](https://pypi.org/project/timescaledb-mcp/).
 
 ### From Source
 
@@ -295,6 +297,10 @@ All checks run automatically in CI via GitHub Actions.
 - **Connection Pooling**: Efficient connection reuse with configurable pool sizes
 - **Query Timeouts**: Configurable timeouts to prevent long-running queries
 - **Resource Management**: Proper cleanup of connections and resources
+
+## Publishing
+
+For instructions on how to publish new versions to PyPI, see [PUBLISHING.md](PUBLISHING.md).
 
 ## License
 
