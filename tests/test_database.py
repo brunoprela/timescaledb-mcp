@@ -29,7 +29,8 @@ async def test_execute_query(db_client: TimescaleDBClient):
 
 async def test_execute_query_with_params(db_client: TimescaleDBClient):
     """Test executing a parameterized query."""
-    results = await db_client.execute_query("SELECT $1 as value", 42)
+    # Use type cast to ensure asyncpg handles the integer correctly
+    results = await db_client.execute_query("SELECT $1::int as value", 42)
     assert len(results) == 1
     assert results[0]["value"] == 42
 

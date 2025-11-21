@@ -214,17 +214,13 @@ class TimescaleDBClient:
             raise ValueError(f"Invalid hypertable name: {hypertable_name}")
 
         # Get hypertable info
+        # Using only columns that are available in all TimescaleDB versions
         hypertable_query = """
             SELECT 
                 hypertable_schema,
                 hypertable_name,
                 num_dimensions,
-                compression_enabled,
-                total_bytes,
-                table_bytes,
-                index_bytes,
-                toast_bytes,
-                compression_bytes
+                compression_enabled
             FROM timescaledb_information.hypertables
             WHERE hypertable_name = $1;
         """
@@ -251,16 +247,13 @@ class TimescaleDBClient:
         hypertable_info["dimensions"] = dimensions
 
         # Get chunk information
+        # Using only columns that are available in all TimescaleDB versions
         chunks_query = """
             SELECT 
                 chunk_schema,
                 chunk_name,
                 range_start,
-                range_end,
-                table_bytes,
-                index_bytes,
-                toast_bytes,
-                total_bytes
+                range_end
             FROM timescaledb_information.chunks
             WHERE hypertable_name = $1
             ORDER BY range_start DESC

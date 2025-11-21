@@ -202,9 +202,6 @@ Example queries:
 
 Dimensions: {ht_info.get('num_dimensions', 0)}
 Compression: {'Enabled' if ht_info.get('compression_enabled') else 'Disabled'}
-Total Size: {ht_info.get('total_bytes', 0)} bytes
-Table Size: {ht_info.get('table_bytes', 0)} bytes
-Index Size: {ht_info.get('index_bytes', 0)} bytes
 
 Dimensions:
 {json.dumps(ht_info.get('dimensions', []), indent=2, default=str)}
