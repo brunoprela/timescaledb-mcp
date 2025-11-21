@@ -234,45 +234,58 @@ timescaledb-mcp/
 
 3. Run tests:
    ```bash
-   pytest
+   make test
+   # or
+   uv run pytest tests/ -v
    ```
 
 4. Run tests with coverage:
    ```bash
-   pytest --cov=timescaledb_mcp --cov-report=html
+   make test-cov
+   # or
+   uv run pytest tests/ -v --cov=timescaledb_mcp --cov-report=html
    ```
 
-5. Format code:
+5. Run all checks:
    ```bash
-   black src/ tests/
-   ruff check src/ tests/
-   mypy src/
+   make check
+   # This runs: lint, type-check, and test
    ```
 
 ### Testing
 
-The test suite requires a running TimescaleDB instance. You can use Docker:
+The test suite includes both unit tests (that don't require a database) and integration tests (that require a TimescaleDB instance).
 
+**By default, `make test` automatically:**
+- Starts a TimescaleDB Docker container
+- Waits for it to be ready
+- Runs all tests (including database tests)
+- Stops and removes the container when done
+
+Simply run:
 ```bash
-docker run -d --name timescaledb \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  timescale/timescaledb:latest-pg16
+make test
 ```
 
-Then set environment variables:
+Or with coverage:
 ```bash
+make test-cov
+```
+
+**Manual testing** (if you have your own TimescaleDB instance):
+```bash
+# Set environment variables
 export TIMESCALEDB_HOST=localhost
 export TIMESCALEDB_PORT=5432
 export TIMESCALEDB_DATABASE=postgres
 export TIMESCALEDB_USER=postgres
 export TIMESCALEDB_PASSWORD=postgres
+
+# Run tests against your database
+make test-local
 ```
 
-Run tests:
-```bash
-pytest -v
-```
+**Requirements**: Docker must be installed and running for `make test` to work. If Docker is not available, database tests will be skipped automatically.
 
 ### Code Quality
 
@@ -283,6 +296,40 @@ The project uses:
 - **Pytest** for testing with async support
 
 All checks run automatically in CI via GitHub Actions.
+
+#### Running Checks Locally
+
+You can run all checks locally using the Makefile:
+
+```bash
+# Install dev dependencies
+make install-dev
+
+# Run all checks (lint, type-check, test)
+make check
+
+# Or run individually:
+make lint          # Run linters
+make lint-fix      # Fix linting issues automatically
+make format        # Format code with black
+make type-check    # Run type checking
+make test          # Run tests
+make test-cov      # Run tests with coverage report
+```
+
+Alternatively, you can use `uv` directly:
+
+```bash
+# Linting
+uv run ruff check src/ tests/
+uv run black --check src/ tests/
+
+# Type checking
+uv run mypy src/
+
+# Testing
+uv run pytest tests/ -v
+```
 
 ## Security
 

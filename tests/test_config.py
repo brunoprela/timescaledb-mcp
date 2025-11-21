@@ -1,7 +1,5 @@
 """Tests for configuration management."""
 
-import os
-import pytest
 from timescaledb_mcp.config import TimescaleDBConfig, get_config
 
 
@@ -23,11 +21,10 @@ def test_config_from_env(monkeypatch):
     monkeypatch.setenv("TIMESCALEDB_DATABASE", "testdb")
     monkeypatch.setenv("TIMESCALEDB_USER", "testuser")
     monkeypatch.setenv("TIMESCALEDB_PASSWORD", "testpass")
-    
+
     config = get_config()
     assert config.host == "testhost"
     assert config.port == 5433
     assert config.database == "testdb"
     assert config.user == "testuser"
     assert config.password == "testpass"
-

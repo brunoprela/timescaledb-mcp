@@ -14,6 +14,7 @@ from mcp.types import (
     PromptMessage,
     PromptArgument,
 )
+from pydantic import AnyUrl
 
 from .config import get_config
 from .database import TimescaleDBClient
@@ -50,31 +51,31 @@ async def list_resources() -> list[Resource]:
         client = await get_db_client()
         tables = await client.list_tables()
         hypertables = await client.list_hypertables()
-        
+
         resources = []
-        
+
         # Add table resources
         for table in tables:
             resources.append(
                 Resource(
-                    uri=f"timescaledb://table/{table}",
+                    uri=AnyUrl(f"timescaledb://table/{table}"),
                     name=f"Table: {table}",
                     description=f"Schema and metadata for table '{table}'",
                     mimeType="application/json",
                 )
             )
-        
+
         # Add hypertable resources
         for ht in hypertables:
             resources.append(
                 Resource(
-                    uri=f"timescaledb://hypertable/{ht['hypertable_name']}",
+                    uri=AnyUrl(f"timescaledb://hypertable/{ht['hypertable_name']}"),
                     name=f"Hypertable: {ht['hypertable_name']}",
                     description=f"Schema and metadata for hypertable '{ht['hypertable_name']}'",
                     mimeType="application/json",
                 )
             )
-        
+
         return resources
     except Exception as e:
         logger.error(f"Error listing resources: {e}", exc_info=True)
@@ -86,20 +87,20 @@ async def read_resource(uri: str) -> str:
     """Read a resource by URI."""
     try:
         client = await get_db_client()
-        
+
         if uri.startswith("timescaledb://table/"):
             table_name = uri.replace("timescaledb://table/", "")
             table_info = await client.describe_table(table_name)
             return json.dumps(table_info, indent=2, default=str)
-        
+
         elif uri.startswith("timescaledb://hypertable/"):
             hypertable_name = uri.replace("timescaledb://hypertable/", "")
             hypertable_info = await client.describe_hypertable(hypertable_name)
             return json.dumps(hypertable_info, indent=2, default=str)
-        
+
         else:
             raise ValueError(f"Unknown resource URI: {uri}")
-    
+
     except TableNotFoundError as e:
         raise ValueError(f"Table not found: {str(e)}") from e
     except HypertableNotFoundError as e:
@@ -153,50 +154,50 @@ async def get_prompt(name: str, arguments: dict[str, Any] | None) -> list[Prompt
     """Get a prompt by name."""
     try:
         client = await get_db_client()
-        
+
         if name == "query_timeseries_data":
             hypertable_name = arguments.get("hypertable_name") if arguments else None
             time_range = arguments.get("time_range") if arguments else None
-            
+
             if not hypertable_name:
                 raise ValueError("hypertable_name is required")
-            
+
             # Get hypertable info
             try:
                 ht_info = await client.describe_hypertable(hypertable_name)
                 time_column = ht_info.get("dimensions", [{}])[0].get("column_name", "time")
             except Exception:
                 time_column = "time"
-            
+
             prompt_text = f"""Query time-series data from the '{hypertable_name}' hypertable.
 
 Time column: {time_column}
 """
             if time_range:
                 prompt_text += f"Time range: {time_range}\n"
-            
+
             prompt_text += """
 Example queries:
 1. Get recent data: SELECT * FROM "{hypertable_name}" ORDER BY {time_column} DESC LIMIT 100;
 2. Aggregate by hour: SELECT time_bucket('1 hour', {time_column}) AS bucket, AVG(value) FROM "{hypertable_name}" GROUP BY bucket;
 3. Filter by time range: SELECT * FROM "{hypertable_name}" WHERE {time_column} >= NOW() - INTERVAL '24 hours';
 """
-            
+
             return [
                 PromptMessage(
                     role="user",
                     content=TextContent(type="text", text=prompt_text),
                 )
             ]
-        
+
         elif name == "analyze_hypertable":
             hypertable_name = arguments.get("hypertable_name") if arguments else None
-            
+
             if not hypertable_name:
                 raise ValueError("hypertable_name is required")
-            
+
             ht_info = await client.describe_hypertable(hypertable_name)
-            
+
             analysis = f"""Analysis of hypertable '{hypertable_name}':
 
 Dimensions: {ht_info.get('num_dimensions', 0)}
@@ -211,18 +212,18 @@ Dimensions:
 Recent Chunks:
 {json.dumps(ht_info.get('recent_chunks', [])[:5], indent=2, default=str)}
 """
-            
+
             return [
                 PromptMessage(
                     role="user",
                     content=TextContent(type="text", text=analysis),
                 )
             ]
-        
+
         elif name == "explore_database_schema":
             tables = await client.list_tables()
             hypertables = await client.list_hypertables()
-            
+
             schema_text = f"""Database Schema Overview:
 
 Tables ({len(tables)}):
@@ -233,17 +234,17 @@ Hypertables ({len(hypertables)}):
 
 Use the describe_table or describe_hypertable tools to get detailed information about specific tables or hypertables.
 """
-            
+
             return [
                 PromptMessage(
                     role="user",
                     content=TextContent(type="text", text=schema_text),
                 )
             ]
-        
+
         else:
             raise ValueError(f"Unknown prompt: {name}")
-    
+
     except Exception as e:
         logger.error(f"Error getting prompt {name}: {e}", exc_info=True)
         raise ValueError(f"Error getting prompt: {str(e)}") from e
@@ -372,51 +373,52 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
     """Handle tool calls."""
     try:
         client = await get_db_client()
-        
+
         if name == "execute_query":
             query = arguments.get("query")
             if not query:
                 raise ValueError("Query parameter is required")
-            
+
             params = arguments.get("parameters", [])
             results = await client.execute_query(query, *params)
-            
+
             result_text = json.dumps(results, indent=2, default=str)
-            
+
             return [
                 TextContent(
                     type="text",
                     text=f"Query executed successfully. Returned {len(results)} row(s).\n\nResults:\n{result_text}",
                 )
             ]
-        
+
         elif name == "list_tables":
             tables = await client.list_tables()
             return [
                 TextContent(
                     type="text",
-                    text=f"Found {len(tables)} table(s):\n" + "\n".join(f"- {table}" for table in tables),
+                    text=f"Found {len(tables)} table(s):\n"
+                    + "\n".join(f"- {table}" for table in tables),
                 )
             ]
-        
+
         elif name == "describe_table":
             table_name = arguments.get("table_name")
             if not table_name:
                 raise ValueError("table_name parameter is required")
-            
+
             table_info = await client.describe_table(table_name)
             info_text = json.dumps(table_info, indent=2, default=str)
-            
+
             return [
                 TextContent(
                     type="text",
                     text=f"Table information for '{table_name}':\n{info_text}",
                 )
             ]
-        
+
         elif name == "list_hypertables":
             hypertables = await client.list_hypertables()
-            
+
             if not hypertables:
                 return [
                     TextContent(
@@ -424,35 +426,37 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                         text="No hypertables found in the database.",
                     )
                 ]
-            
+
             result_text = f"Found {len(hypertables)} hypertable(s):\n\n"
             for ht in hypertables:
                 result_text += f"- {ht['hypertable_name']} "
                 result_text += f"(dimensions: {ht['num_dimensions']}, "
-                result_text += f"compression: {'enabled' if ht['compression_enabled'] else 'disabled'})\n"
-            
+                result_text += (
+                    f"compression: {'enabled' if ht['compression_enabled'] else 'disabled'})\n"
+                )
+
             return [TextContent(type="text", text=result_text)]
-        
+
         elif name == "describe_hypertable":
             hypertable_name = arguments.get("hypertable_name")
             if not hypertable_name:
                 raise ValueError("hypertable_name parameter is required")
-            
+
             hypertable_info = await client.describe_hypertable(hypertable_name)
             info_text = json.dumps(hypertable_info, indent=2, default=str)
-            
+
             return [
                 TextContent(
                     type="text",
                     text=f"Hypertable information for '{hypertable_name}':\n{info_text}",
                 )
             ]
-        
+
         elif name == "query_timeseries":
             hypertable_name = arguments.get("hypertable_name")
             if not hypertable_name:
                 raise ValueError("hypertable_name parameter is required")
-            
+
             time_column = arguments.get("time_column", "time")
             start_time = arguments.get("start_time")
             end_time = arguments.get("end_time")
@@ -461,19 +465,19 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
             columns = arguments.get("columns", "*")
             where_clause = arguments.get("where_clause")
             limit = arguments.get("limit", 1000)
-            
+
             # Validate hypertable name (basic SQL injection prevention)
-            if not hypertable_name.replace('_', '').replace('.', '').replace('"', '').isalnum():
+            if not hypertable_name.replace("_", "").replace(".", "").replace('"', "").isalnum():
                 raise ValueError(f"Invalid hypertable name: {hypertable_name}")
-            
+
             # Escape hypertable name for use in query
             escaped_hypertable = hypertable_name.replace('"', '""')
-            
+
             # Build parameterized query
             query_parts = []
             params = []
             param_idx = 1
-            
+
             if bucket_interval:
                 if aggregation and columns != "*":
                     query_parts.append(
@@ -495,7 +499,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                     param_idx += 1
             else:
                 query_parts.append(f'SELECT {columns} FROM "{escaped_hypertable}"')
-            
+
             # Add WHERE clause
             conditions = []
             if start_time:
@@ -508,34 +512,34 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
                 param_idx += 1
             if where_clause:
                 conditions.append(where_clause)
-            
+
             if conditions:
                 query_parts.append("WHERE " + " AND ".join(conditions))
-            
+
             # Add ORDER BY and LIMIT
             if bucket_interval:
                 query_parts.append("GROUP BY bucket ORDER BY bucket")
             else:
                 query_parts.append(f"ORDER BY {time_column}")
-            
+
             query_parts.append(f"LIMIT ${param_idx}")
             params.append(limit)
-            
+
             query = " ".join(query_parts)
-            
+
             results = await client.execute_query(query, *params)
             result_text = json.dumps(results, indent=2, default=str)
-            
+
             return [
                 TextContent(
                     type="text",
                     text=f"Time-series query executed successfully. Returned {len(results)} row(s).\n\nQuery:\n{query}\n\nResults:\n{result_text}",
                 )
             ]
-        
+
         else:
             raise ValueError(f"Unknown tool: {name}")
-    
+
     except (TableNotFoundError, HypertableNotFoundError) as e:
         logger.error(f"Resource not found: {e}")
         return [
@@ -573,17 +577,19 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> Sequence[TextConten
 async def main():
     """Main entry point for the MCP server."""
     global db_client
-    
+
     try:
         config = get_config()
         db_client = TimescaleDBClient(config)
         await db_client.initialize()
-        
+
         if not await db_client.test_connection():
-            logger.warning("Failed to connect to TimescaleDB. Server will start but queries may fail.")
+            logger.warning(
+                "Failed to connect to TimescaleDB. Server will start but queries may fail."
+            )
         else:
             logger.info("Successfully connected to TimescaleDB")
-        
+
         # Run the server using stdio transport
         async with stdio_server() as (read_stream, write_stream):
             await app.run(
