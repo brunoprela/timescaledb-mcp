@@ -11,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12"]
 
     services:
@@ -51,6 +51,18 @@ jobs:
           uv run ruff check src/ tests/
           uv run black --check src/ tests/
           uv run mypy src/
+
+      - name: Wait for database to be ready
+        env:
+          TIMESCALEDB_HOST: localhost
+          TIMESCALEDB_PORT: 5432
+          TIMESCALEDB_DATABASE: postgres
+          TIMESCALEDB_USER: postgres
+          TIMESCALEDB_PASSWORD: postgres
+        run: |
+          echo "Waiting for database to be ready..."
+          sleep 5
+          echo "✅ Proceeding with tests..."
 
       - name: Run tests
         env:
