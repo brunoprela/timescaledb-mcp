@@ -1,5 +1,6 @@
 """Async database connection and query execution for TimescaleDB."""
 
+import asyncio
 import asyncpg
 from typing import List, Dict, Any, Optional
 import logging
@@ -80,8 +81,14 @@ class TimescaleDBClient:
         """
         try:
             async with self.get_connection() as conn:
-                rows = await conn.fetch(query, *args, timeout=timeout)
+                if timeout is not None:
+                    rows = await asyncio.wait_for(conn.fetch(query, *args), timeout=timeout)
+                else:
+                    rows = await conn.fetch(query, *args)
                 return [dict(row) for row in rows]
+        except asyncio.TimeoutError as e:
+            logger.error(f"Query timeout after {timeout} seconds: {e}")
+            raise QueryExecutionError(f"Query timeout after {timeout} seconds") from e
         except asyncpg.PostgresError as e:
             logger.error(f"Query execution error: {e}")
             raise QueryExecutionError(f"Database error: {str(e)}") from e
@@ -110,8 +117,14 @@ class TimescaleDBClient:
         """
         try:
             async with self.get_connection() as conn:
-                result = await conn.execute(query, *args, timeout=timeout)
+                if timeout is not None:
+                    result = await asyncio.wait_for(conn.execute(query, *args), timeout=timeout)
+                else:
+                    result = await conn.execute(query, *args)
                 return str(result)
+        except asyncio.TimeoutError as e:
+            logger.error(f"Command timeout after {timeout} seconds: {e}")
+            raise QueryExecutionError(f"Command timeout after {timeout} seconds") from e
         except asyncpg.PostgresError as e:
             logger.error(f"Command execution error: {e}")
             raise QueryExecutionError(f"Database error: {str(e)}") from e
